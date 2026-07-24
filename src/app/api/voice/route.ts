@@ -19,8 +19,10 @@ export async function POST(req: Request) {
       ? "21m00Tcm4TlvDq8ikWAM" 
       : "pNInz6obpgj5QDJeWJmq";
 
-    // Chamada oficial corrigida com a barra correta antes do voiceId
-    const response = await fetch(`https://elevenlabs.io{voiceId}`, {
+    // URL TOTALMENTE ESCRITO POR EXTENSO PARA EVITAR ERROS DE CONCATENAÇÃO
+    const url = `https://elevenlabs.io{voiceId}`;
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

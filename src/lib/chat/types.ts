@@ -1,6 +1,8 @@
 export type GeneroEscolhido = "masculino" | "feminino";
 
-export type ArquetipoId = "chefe_narcisista";
+export type ArquetipoId = "chefe_narcisista" | "parceiro_passivo_agressivo";
+
+export type Dificuldade = "facil" | "medio" | "dificil";
 
 export interface BiometricPayload {
   /** Oscilação de pitch detectada localmente (0–1). */
@@ -33,5 +35,6 @@ export interface ArquetipoProfile {
   nomeMasculino: string;
   nomeFeminino: string;
   perfilComportamental: string;
+  dificuldade: Dificuldade;
   contextoBase: string;
 }

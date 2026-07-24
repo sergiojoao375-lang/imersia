@@ -12,16 +12,24 @@ import {
   Loader2,
   Mic,
   Phone,
+  Settings2,
   Sparkles,
   User,
   Volume2,
+  X,
 } from "lucide-react";
 
 import { useAudioProcessor } from "@/hooks/useAudioProcessor";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { getArquetipo, getNomeArquetipo } from "@/lib/chat/arquetipos";
+import {
+  getArquetipo,
+  getDificuldadeLabel,
+  getNomeArquetipo,
+  getOpeningMessage,
+  listArquetipos,
+} from "@/lib/chat/arquetipos";
 import { streamChat, streamCoach } from "@/lib/chat/stream-client";
-import type { ChatMessage, GeneroEscolhido } from "@/lib/chat/types";
+import type { ArquetipoId, ChatMessage, Dificuldade, GeneroEscolhido } from "@/lib/chat/types";
 
 type UiMessage = {
   id: string;
@@ -63,18 +71,46 @@ function normalizePitch(volumeDb: number, samples: number[]): number {
   return Math.min(1, Math.max(0, Math.sqrt(variance) * 12));
 }
 
+function getDificuldadeColor(dificuldade: Dificuldade): string {
+  if (dificuldade === "facil") return "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20";
+  if (dificuldade === "medio") return "text-amber-400 bg-amber-500/10 ring-amber-500/20";
+  return "text-red-400 bg-red-500/10 ring-red-500/20";
+}
+
+function getAvatarStyle(arquetipoId: ArquetipoId, isStreaming: boolean): string {
+  if (arquetipoId === "parceiro_passivo_agressivo") {
+    return isStreaming
+      ? "border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.45)] bg-cyan-950/40"
+      : "border-zinc-600 bg-zinc-800";
+  }
+
+  return isStreaming
+    ? "border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.45)] bg-zinc-800"
+    : "border-zinc-700 bg-zinc-800";
+}
+
+function getAccentGradient(arquetipoId: ArquetipoId): string {
+  if (arquetipoId === "parceiro_passivo_agressivo") {
+    return "from-cyan-500/10 via-zinc-950 to-black";
+  }
+  return "from-red-500/10 via-zinc-950 to-black";
+}
+
 export default function CallScreen() {
-  const arquetipo = getArquetipo("chefe_narcisista");
+  const [arquetipoId, setArquetipoId] = useState<ArquetipoId>("chefe_narcisista");
+  const arquetipo = useMemo(() => getArquetipo(arquetipoId), [arquetipoId]);
+  const availableArquetipos = useMemo(() => listArquetipos(), []);
 
   const [genero, setGenero] = useState<GeneroEscolhido>("masculino");
   const [patience, setPatience] = useState(INITIAL_PATIENCE);
-  const [messages, setMessages] = useState<UiMessage[]>([
+  const [messages, setMessages] = useState<UiMessage[]>(() => [
     {
       id: createId(),
       role: "boss",
-      content: `${getNomeArquetipo(arquetipo, "masculino")}: Senta. Tens cinco minutos. O que queres?`,
+      content: getOpeningMessage(getArquetipo("chefe_narcisista"), "masculino"),
     },
   ]);
+  const [isCharacterDrawerOpen, setIsCharacterDrawerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isBossStreaming, setIsBossStreaming] = useState(false);
   const [isCoachOpen, setIsCoachOpen] = useState(false);
@@ -171,7 +207,7 @@ export default function CallScreen() {
           {
             message: trimmed,
             generoEscolhido: genero,
-            arquetipoId: "chefe_narcisista",
+            arquetipoId,
             patienceLevel: patience,
             biometrics,
             history: historyForApi(),
@@ -211,7 +247,7 @@ export default function CallScreen() {
         setIsBossStreaming(false);
       }
     },
-    [bossName, genero, historyForApi, isBossStreaming, patience],
+    [arquetipoId, bossName, genero, historyForApi, isBossStreaming, patience],
   );
 
   const handleMicPress = useCallback(async () => {
@@ -288,30 +324,47 @@ export default function CallScreen() {
     patience,
   ]);
 
+  const resetSession = useCallback(
+    (nextArquetipoId: ArquetipoId, nextGenero: GeneroEscolhido) => {
+      const profile = getArquetipo(nextArquetipoId);
+      setArquetipoId(nextArquetipoId);
+      setGenero(nextGenero);
+      setPatience(INITIAL_PATIENCE);
+      setMessages([
+        {
+          id: createId(),
+          role: "boss",
+          content: getOpeningMessage(profile, nextGenero),
+        },
+      ]);
+      setCoachText("");
+      setIsCoachOpen(false);
+      setIsCharacterDrawerOpen(false);
+    },
+    [],
+  );
+
   const handleGenderChange = (nextGenero: GeneroEscolhido) => {
     if (isRecording || isBossStreaming) return;
-    setGenero(nextGenero);
-    const nome = getNomeArquetipo(arquetipo, nextGenero);
-    setMessages([
-      {
-        id: createId(),
-        role: "boss",
-        content: `${nome}: Senta. Tens cinco minutos. O que queres?`,
-      },
-    ]);
-    setPatience(INITIAL_PATIENCE);
-    setCoachText("");
-    setIsCoachOpen(false);
+    resetSession(arquetipoId, nextGenero);
+  };
+
+  const handleArquetipoSelect = (nextArquetipoId: ArquetipoId) => {
+    if (isRecording || isBossStreaming || nextArquetipoId === arquetipoId) {
+      setIsCharacterDrawerOpen(false);
+      return;
+    }
+    resetSession(nextArquetipoId, genero);
   };
 
   return (
-    <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-zinc-100">
+    <div className={`relative flex h-dvh w-full flex-col overflow-hidden bg-gradient-to-b ${getAccentGradient(arquetipoId)} text-zinc-100`}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.12),transparent_45%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,rgba(16,185,129,0.08),transparent_40%)]" />
 
       {/* Top bar */}
       <header className="relative z-10 border-b border-white/5 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-red-400">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-60" />
@@ -323,15 +376,21 @@ export default function CallScreen() {
             <Phone className="h-3.5 w-3.5" />
             Alta Tensão
           </div>
+          <button
+            type="button"
+            onClick={() => setIsCharacterDrawerOpen(true)}
+            disabled={isRecording || isBossStreaming}
+            aria-label="Trocar personagem"
+            className="flex items-center gap-1.5 rounded-full bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-300 ring-1 ring-white/10 transition hover:bg-zinc-700 disabled:opacity-40"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Trocar
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
           <div
-            className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 ${
-              isBossStreaming
-                ? "border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.45)]"
-                : "border-zinc-700"
-            } bg-zinc-800`}
+            className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 ${getAvatarStyle(arquetipoId, isBossStreaming)}`}
           >
             <User className="h-8 w-8 text-zinc-300" />
             {isBossStreaming && (
@@ -342,7 +401,14 @@ export default function CallScreen() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-semibold">{bossName}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-xl font-semibold">{bossName}</h1>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${getDificuldadeColor(arquetipo.dificuldade)}`}
+              >
+                {getDificuldadeLabel(arquetipo.dificuldade)}
+              </span>
+            </div>
             <p className="text-sm text-zinc-400">{arquetipo.perfilComportamental}</p>
 
             <div className="mt-2 flex gap-2">
@@ -356,7 +422,7 @@ export default function CallScreen() {
                     : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                 }`}
               >
-                Dr. Carlos
+                {arquetipo.nomeMasculino}
               </button>
               <button
                 type="button"
@@ -368,7 +434,7 @@ export default function CallScreen() {
                     : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                 }`}
               >
-                Dra. Helena
+                {arquetipo.nomeFeminino}
               </button>
             </div>
           </div>
@@ -377,7 +443,7 @@ export default function CallScreen() {
         {/* Patience bar */}
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between text-xs">
-            <span className="text-zinc-400">Paciência do Chefe</span>
+            <span className="text-zinc-400">Paciência</span>
             <span className={`font-medium ${patience <= 20 ? "text-red-400" : "text-zinc-300"}`}>
               {patience}% · {getPatienceLabel(patience)}
             </span>
@@ -542,6 +608,77 @@ export default function CallScreen() {
               >
                 Enviar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Character drawer */}
+      {isCharacterDrawerOpen && (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/70 backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Fechar seleção de personagens"
+            className="absolute inset-0"
+            onClick={() => setIsCharacterDrawerOpen(false)}
+          />
+          <div className="relative w-full rounded-t-3xl bg-zinc-900 p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] ring-1 ring-white/10">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-100">Escolher Personagem</h2>
+                <p className="text-xs text-zinc-500">Selecciona quem enfrentar nesta simulação</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCharacterDrawerOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {availableArquetipos.map((item) => {
+                const isActive = item.id === arquetipoId;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleArquetipoSelect(item.id)}
+                    className={`flex w-full items-start gap-4 rounded-2xl p-4 text-left transition ${
+                      isActive
+                        ? "bg-zinc-800 ring-2 ring-red-500/60"
+                        : "bg-zinc-950/80 ring-1 ring-white/5 hover:bg-zinc-800/60"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                        item.id === "parceiro_passivo_agressivo"
+                          ? "bg-cyan-950/50 ring-1 ring-cyan-500/30"
+                          : "bg-red-950/50 ring-1 ring-red-500/30"
+                      }`}
+                    >
+                      <User className="h-6 w-6 text-zinc-300" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-zinc-100">{item.perfilComportamental}</p>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${getDificuldadeColor(item.dificuldade)}`}
+                        >
+                          {getDificuldadeLabel(item.dificuldade)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-zinc-400">
+                        {item.nomeMasculino} / {item.nomeFeminino}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-zinc-500">
+                        {item.contextoBase}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

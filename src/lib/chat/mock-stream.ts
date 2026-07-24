@@ -1,7 +1,7 @@
 import type { ArquetipoProfile, BiometricPayload, GeneroEscolhido } from "./types";
 import { getNomeArquetipo } from "./arquetipos";
 
-function pickMockReply(
+function pickNarcissistMockReply(
   nome: string,
   patienceLevel: number,
   biometrics: BiometricPayload,
@@ -41,6 +41,65 @@ function pickMockReply(
   return `${nome}: Ouve bem — aqui quem decide sou eu. Reformula isso sem rodeios e mostra valor concreto.`;
 }
 
+function pickPassiveAggressiveMockReply(
+  nome: string,
+  patienceLevel: number,
+  biometrics: BiometricPayload,
+  userMessage: string,
+): string {
+  const hesitations = biometrics.hesitations ?? 0;
+  const silenceMs = biometrics.silenceTimeMs ?? 0;
+  const isOverlyRational =
+    /portanto|logicamente|objectivamente|evidência|dados|estatística|análise|racional/i.test(
+      userMessage,
+    );
+
+  if (patienceLevel <= 15) {
+    return `${nome}: Não se passa nada. Faz como quiseres — já estou habituado.`;
+  }
+
+  if (isOverlyRational) {
+    return `${nome}: Tu saberás. Não preciso de uma aula de lógica para perceber o que queres dizer.`;
+  }
+
+  if (hesitations >= 2) {
+    return `${nome}: Não te quero interromper... continua.`;
+  }
+
+  if (silenceMs >= 2000) {
+    return `${nome}: Estou à espera. Ou não?`;
+  }
+
+  if (patienceLevel <= 40) {
+    return `${nome}: Interessante. Muito interessante mesmo.`;
+  }
+
+  if (/desculpa|perdão/i.test(userMessage)) {
+    return `${nome}: Não se passa nada. De verdade.`;
+  }
+
+  return `${nome}: Tu saberás.`;
+}
+
+function pickMockReply(
+  arquetipo: ArquetipoProfile,
+  nome: string,
+  patienceLevel: number,
+  biometrics: BiometricPayload,
+  userMessage: string,
+): string {
+  if (arquetipo.id === "parceiro_passivo_agressivo") {
+    return pickPassiveAggressiveMockReply(
+      nome,
+      patienceLevel,
+      biometrics,
+      userMessage,
+    );
+  }
+
+  return pickNarcissistMockReply(nome, patienceLevel, biometrics, userMessage);
+}
+
 export async function createMockTextStream(
   text: string,
   chunkDelayMs = 18,
@@ -66,5 +125,5 @@ export function buildMockReply(
   userMessage: string,
 ): string {
   const nome = getNomeArquetipo(arquetipo, genero);
-  return pickMockReply(nome, patienceLevel, biometrics, userMessage);
+  return pickMockReply(arquetipo, nome, patienceLevel, biometrics, userMessage);
 }

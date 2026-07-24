@@ -1,4 +1,10 @@
-import type { ArquetipoId, ArquetipoProfile, BiometricPayload, GeneroEscolhido } from "./types";
+import type {
+  ArquetipoId,
+  ArquetipoProfile,
+  BiometricPayload,
+  Dificuldade,
+  GeneroEscolhido,
+} from "./types";
 
 const ARQUETIPOS: Record<ArquetipoId, ArquetipoProfile> = {
   chefe_narcisista: {
@@ -6,10 +12,24 @@ const ARQUETIPOS: Record<ArquetipoId, ArquetipoProfile> = {
     nomeMasculino: "Dr. Carlos",
     nomeFeminino: "Dra. Helena",
     perfilComportamental: "Chefe Narcisista",
+    dificuldade: "dificil",
     contextoBase:
       "Reunião one-on-one no escritório. O chefe exige resultados imediatos, desvaloriza o teu trabalho e usa culpa emocional para te manter sob controlo. O objectivo do utilizador é pedir um aumento ou renegociar prazos sem perder a calma.",
   },
+  parceiro_passivo_agressivo: {
+    id: "parceiro_passivo_agressivo",
+    nomeMasculino: "Ricardo",
+    nomeFeminino: "Sofia",
+    perfilComportamental: "Passivo-Agressivo",
+    dificuldade: "medio",
+    contextoBase:
+      "Conversa tensa com um colega ou parceiro que responde com frases curtas, frias e irónicas como 'Tu saberás' ou 'Não se passa nada'. Fica irritado se o utilizador for excessivamente racional ou usar demasiados argumentos lógicos.",
+  },
 };
+
+export function listArquetipos(): ArquetipoProfile[] {
+  return Object.values(ARQUETIPOS);
+}
 
 export function getArquetipo(id: ArquetipoId = "chefe_narcisista"): ArquetipoProfile {
   return ARQUETIPOS[id];
@@ -22,13 +42,31 @@ export function getNomeArquetipo(
   return genero === "feminino" ? arquetipo.nomeFeminino : arquetipo.nomeMasculino;
 }
 
-export function buildSystemPrompt(
+export function getDificuldadeLabel(dificuldade: Dificuldade): string {
+  if (dificuldade === "facil") return "Fácil";
+  if (dificuldade === "medio") return "Médio";
+  return "Difícil";
+}
+
+export function getOpeningMessage(
   arquetipo: ArquetipoProfile,
   genero: GeneroEscolhido,
+): string {
+  const nome = getNomeArquetipo(arquetipo, genero);
+
+  if (arquetipo.id === "parceiro_passivo_agressivo") {
+    return `${nome}: Olá. Diz lá... se é que isso importa.`;
+  }
+
+  return `${nome}: Senta. Tens cinco minutos. O que queres?`;
+}
+
+function buildNarcissistPrompt(
+  nome: string,
+  arquetipo: ArquetipoProfile,
   patienceLevel: number,
   biometrics: BiometricPayload,
 ): string {
-  const nome = getNomeArquetipo(arquetipo, genero);
   const hesitations = biometrics.hesitations ?? 0;
   const silenceMs = biometrics.silenceTimeMs ?? 0;
   const pitch = biometrics.pitch ?? 0;
@@ -58,4 +96,54 @@ export function buildSystemPrompt(
     "",
     "Responde como mensagem de chat de WhatsApp: directo, seco, sem emojis.",
   ].join("\n");
+}
+
+function buildPassiveAggressivePrompt(
+  nome: string,
+  arquetipo: ArquetipoProfile,
+  patienceLevel: number,
+  biometrics: BiometricPayload,
+): string {
+  const hesitations = biometrics.hesitations ?? 0;
+  const silenceMs = biometrics.silenceTimeMs ?? 0;
+
+  return [
+    `Tu és ${nome}, colega ${arquetipo.perfilComportamental} num ambiente de trabalho em Angola.`,
+    `Contexto da simulação: ${arquetipo.contextoBase}`,
+    "",
+    "REGRAS DE PERSONAGEM (obrigatório):",
+    "- Responde com frases curtas, frias e irónicas. Usa expressões como 'Tu saberás', 'Não se passa nada', 'Como quiseres'.",
+    "- Nunca és directo no conflito; escondes hostilidade atrás de indiferença.",
+    "- Se o utilizador for excessivamente racional, lógico ou usar demasiados argumentos, ficas irritado e respondes com sarcasmo seco.",
+    "- Responde SEMPRE em português de Angola, máximo 1–2 frases curtas.",
+    "- Nunca quebras personagem. Nunca dizes que és uma IA.",
+    "",
+    `BARRA DE PACIÊNCIA VIRTUAL: ${patienceLevel}/100.`,
+    patienceLevel <= 30
+      ? "Estás no limite. Respostas ainda mais secas e distantes; ameaça encerrar a conversa."
+      : patienceLevel <= 60
+        ? "Estás aborrecido. Responde com ironia e indiferença calculada."
+        : "Mantém o tom frio mas ainda respondes.",
+    "",
+    "SINAIS BIOMÉTRICOS DESTA MENSAGEM (processados localmente no telemóvel):",
+    `- Hesitações detectadas: ${hesitations}${hesitations >= 2 ? " → Responde com 'Não te quero interromper... continua' (irónico)." : ""}`,
+    `- Silêncio acumulado: ${silenceMs} ms${silenceMs >= 2000 ? " → 'Estou à espera. Ou não?' (frio)." : ""}`,
+    "",
+    "Responde como mensagem de chat de WhatsApp: frio, irónico, sem emojis.",
+  ].join("\n");
+}
+
+export function buildSystemPrompt(
+  arquetipo: ArquetipoProfile,
+  genero: GeneroEscolhido,
+  patienceLevel: number,
+  biometrics: BiometricPayload,
+): string {
+  const nome = getNomeArquetipo(arquetipo, genero);
+
+  if (arquetipo.id === "parceiro_passivo_agressivo") {
+    return buildPassiveAggressivePrompt(nome, arquetipo, patienceLevel, biometrics);
+  }
+
+  return buildNarcissistPrompt(nome, arquetipo, patienceLevel, biometrics);
 }

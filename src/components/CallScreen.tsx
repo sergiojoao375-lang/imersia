@@ -2,17 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import { Mic, Settings, User } from "lucide-react";
-import  useImersiaChat  from "@/hooks/useImersiaChat";
+import useImersiaChat from "@/hooks/useImersiaChat";
 
 export default function CallScreen() {
   const [arquetipoId, setArquetipoId] = useState("chefe_narcisista");
   const [genero, setGenero] = useState<"masculino" | "feminino">("masculino");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Importamos todas as funções e métricas do nosso Hook isolado (Parte 1)
+  // Importamos a lógica passando os estados reativos da tela
   const {
     paciencia,
-    setPatience,
     messages,
     setMessages,
     currentReply,
@@ -33,16 +32,16 @@ export default function CallScreen() {
     ? (genero === "masculino" ? "Dr. Carlos" : "Dra. Helena") 
     : (genero === "masculino" ? "Ricardo" : "Sofia");
 
-  // Mensagem inicial quando o app abre ou quando trocas de arquétipo
+  // Mensagem inicial reativa ao trocar de arquétipo ou género
   useEffect(() => {
     warmUpVoice();
     const initText = arquetipoId === "chefe_narcisista" 
-      ? "Dr. Carlos: Senta. Tens cinco minutos. O que queres?" 
-      : "Ricardo: Faz como quiseres. Não se passa nada.";
+      ? `${bossName}: Senta. Tens cinco minutos. O que queres?` 
+      : `${bossName}: Faz como quiseres. Não se passa nada.`;
     
     setMessages([{ id: createId(), role: "assistant", content: initText }]);
     setTimeout(() => speakText(initText, 100), 600);
-  }, [arquetipoId, genero, warmUpVoice, speakText, setMessages]);
+  }, [arquetipoId, genero]);
 
   const handleToggleListening = () => {
     const isBossActive = isBossStreaming || isBossSpeaking;
@@ -132,7 +131,7 @@ export default function CallScreen() {
         </button>
       </div>
 
-      {/* DRAWER MOBILE */}
+      {/* DRAWER MOBILE DE PERSONAGENS */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50">
           <div className="bg-zinc-900 w-full max-w-md p-6 rounded-t-3xl border-t border-zinc-800 flex flex-col gap-4">
@@ -142,16 +141,16 @@ export default function CallScreen() {
             </div>
             
             <div 
-              onClick={() => { setArquetipoId("chefe_narcisista"); setPatience(100); stopSpeaking(); setIsDrawerOpen(false); }}
-              className={`p-4 rounded-2xl border cursor-pointer ${arquetipoId === "chefe_narcisista" ? "border-red-500 bg-red-950/10" : "border-zinc-800 bg-zinc-950"}`}
+              onClick={() => { setArquetipoId("chefe_narcisista"); setIsDrawerOpen(false); }}
+              className={`p-4 rounded-2xl border cursor-pointer transition ${arquetipoId === "chefe_narcisista" ? "border-red-500 bg-red-950/20" : "border-zinc-800 bg-zinc-950/40"}`}
             >
               <h3 className="font-bold text-red-500">Chefe Narcisista (Dr. Carlos / Dra. Helena)</h3>
               <p className="text-xs text-zinc-400 mt-1">Nível: Difícil. Arrogante e ríspido.</p>
             </div>
 
             <div 
-              onClick={() => { setArquetipoId("parceiro_passivo_agressivo"); setPatience(100); stopSpeaking(); setIsDrawerOpen(false); }}
-              className={`p-4 rounded-2xl border cursor-pointer ${arquetipoId === "parceiro_passivo_agressivo" ? "border-cyan-500 bg-cyan-950/10" : "border-zinc-800 bg-zinc-950"}`}
+              onClick={() => { setArquetipoId("parceiro_passivo_agressivo"); setIsDrawerOpen(false); }}
+              className={`p-4 rounded-2xl border cursor-pointer transition ${arquetipoId === "parceiro_passivo_agressivo" ? "border-cyan-500 bg-cyan-950/20" : "border-zinc-800 bg-zinc-950/40"}`}
             >
               <h3 className="font-bold text-cyan-500">Parceiro Passivo-Agressivo (Ricardo / Sofia)</h3>
               <p className="text-xs text-zinc-400 mt-1">Nível: Médio. Frio e irónico.</p>
@@ -160,8 +159,8 @@ export default function CallScreen() {
             <div className="mt-2 border-t border-zinc-800 pt-3">
               <span className="text-xs text-zinc-400 block mb-2">Género do Personagem</span>
               <div className="flex gap-2">
-                <button onClick={() => { setGenero("masculino"); stopSpeaking(); }} className={`flex-1 py-2 text-xs rounded-xl font-bold border ${genero === "masculino" ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-950 text-zinc-400 border-zinc-800"}`}>Masculino</button>
-                <button onClick={() => { setGenero("feminino"); stopSpeaking(); }} className={`flex-1 py-2 text-xs rounded-xl font-bold border ${genero === "feminino" ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-950 text-zinc-400 border-zinc-800"}`}>Feminino</button>
+                <button onClick={() => { setGenero("masculino"); setIsDrawerOpen(false); }} className={`flex-1 py-2 text-xs rounded-xl font-bold border transition ${genero === "masculino" ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-950 text-zinc-400 border-zinc-800"}`}>Masculino</button>
+                <button onClick={() => { setGenero("feminino"); setIsDrawerOpen(false); }} className={`flex-1 py-2 text-xs rounded-xl font-bold border transition ${genero === "feminino" ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-950 text-zinc-400 border-zinc-800"}`}>Feminino</button>
               </div>
             </div>
           </div>

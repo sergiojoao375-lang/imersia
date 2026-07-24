@@ -11,52 +11,65 @@ export default function useImersiaChat(arquetipoId: string, genero: "masculino" 
   const [isBossSpeaking, setIsBossSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
-  // Fallback caso useAudioProcessor não seja exportado como default
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setPatience(100);
+    setCurrentReply("");
+    stopSpeaking();
+  }, [arquetipoId, genero]);
+
   const audioProcessor = useAudioProcessor();
   const audioMetrics = audioProcessor?.audioMetrics || { volume: 0, isSpeaking: false, hesitationCount: 0, totalSilenceTime: 0 };
   const startListening = audioProcessor?.startListening || (() => {});
   const stopListening = audioProcessor?.stopListening || (() => {});
 
-  const synthRef = useRef<SpeechSynthesis | null>(null);
   const createId = () => Math.random().toString(36).substring(2, 9);
 
   const warmUpVoice = useCallback(() => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      synthRef.current = window.speechSynthesis;
-      const u = new SpeechSynthesisUtterance("");
-      window.speechSynthesis.speak(u);
+    if (typeof window !== "undefined" && !audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.onplaying = () => setIsBossSpeaking(true);
+      audioRef.current.onended = () => setIsBossSpeaking(false);
+      audioRef.current.onerror = () => setIsBossSpeaking(false);
     }
   }, []);
 
   const stopSpeaking = useCallback(() => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
       setIsBossSpeaking(false);
     }
   }, []);
 
-  const speakText = useCallback((text: string, currentPatience: number) => {
-    if (!synthRef.current) return;
-    synthRef.current.cancel();
+  // CORRECÇÃO DA LINHA DO ERRO: Agora liga perfeitamente para a nossa rota local segura
+  const speakText = useCallback(async (text: string) => {
+    warmUpVoice();
+    if (!audioRef.current) return;
 
-    const cleanText = text.replace(/.*:\s*/, "");
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = "pt-PT";
+    try {
+      stopSpeaking();
 
-    if (currentPatience < 50) {
-      utterance.rate = 1.25;
-      utterance.pitch = 1.1;
-    } else {
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, genero }),
+      });
+
+      if (!response.ok) throw new Error("Falha ao gerar voz na rota API");
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      audioRef.current.src = audioUrl;
+      audioRef.current.play();
+
+    } catch (error) {
+      console.error("Erro ao reproduzir áudio:", error);
+      setIsBossSpeaking(false);
     }
-
-    utterance.onstart = () => setIsBossSpeaking(true);
-    utterance.onend = () => setIsBossSpeaking(false);
-    utterance.onerror = () => setIsBossSpeaking(false);
-
-    synthRef.current.speak(utterance);
-  }, []);
+  }, [genero, warmUpVoice, stopSpeaking]);
 
   const startRecognition = useCallback(() => {
     setIsRecording(true);
@@ -120,7 +133,7 @@ export default function useImersiaChat(arquetipoId: string, genero: "masculino" 
       setIsBossStreaming(false);
       setCurrentReply("");
       setMessages((prev) => [...prev, { id: bossMessageId, role: "assistant", content: accumulated }]);
-      speakText(accumulated, nextPatience);
+      speakText(accumulated);
 
     } catch {
       const bossName = arquetipoId === "chefe_narcisista" ? "Chefe" : "Ricardo";
@@ -128,9 +141,28 @@ export default function useImersiaChat(arquetipoId: string, genero: "masculino" 
       setIsBossStreaming(false);
       setCurrentReply("");
       setMessages((prev) => [...prev, { id: bossMessageId, role: "assistant", content: fallback }]);
-      speakText(fallback, paciencia);
+      speakText(fallback);
     }
   };
+
+  useEffect(() => {
+    warmUpVoice();
+    const initText = arquetipoId === "chefe_narcisista" 
+      ? "Senta. Tens cinco minutos. O que queres?" 
+      : "Faz como quiseres. Não se passa nada.";
+    
+    const prefixo = arquetipoId === "chefe_narcisista" 
+      ? (genero === "masculino" ? "Dr. Carlos" : "Dra. Helena") 
+      : (genero === "masculino" ? "Ricardo" : "Sofia");
+
+    setMessages([{ id: createId(), role: "assistant", content: `${prefixo}: ${initText}` }]);
+    
+    const timer = setTimeout(() => {
+      speakText(initText);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [arquetipoId, genero]);
 
   return {
     paciencia,
